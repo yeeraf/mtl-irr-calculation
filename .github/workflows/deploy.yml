@@ -1,0 +1,36 @@
+name: Deploy Nuxt 3 Static Site to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # Or 'master', depending on your default branch name
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # This is important for the action to push to gh-pages branch
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Or your preferred Node.js version (e.g., 18, 20)
+          cache: 'npm'       # Caches npm dependencies to speed up builds
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Nuxt 3 Static Site
+        run: npm run generate # Assumes you have "generate": "nuxi generate" in your package.json
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4 # A popular action for deploying to gh-pages
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }} # GitHub's default token
+          publish_dir: ./.output/public             # Path to your generated static files for Nuxt 3
+          # publish_branch: gh-pages              # Default is gh-pages, you can explicitly set it
+          # force_orphan: true                    # Recommended to clear old files
