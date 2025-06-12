@@ -7,9 +7,9 @@ let modalInstance: ModalInterface | null = null;
 
 const form = reactive({
   sex: "male",
-  age: 4,
+  age: 60,
   ins_period: "1",
-  ins_period_n_year_or_to_age: 3,
+  ins_period_n_year_or_to_age: 4,
   payment_period: "1",
   payment_period_n_year_or_to_age: 2,
   sa: 1000,
@@ -22,9 +22,11 @@ const form = reactive({
   premium: 971,
 });
 
-const ageLoop = ref(5);
+const ageLoop = ref();
 const premiumForm = reactive<Record<number, number>>({});
 const cashBonusForm = reactive<Record<number, number>>({});
+
+const isShowModal = ref(false);
 
 onMounted(() => {
   const targetEl = document.getElementById("modalEl");
@@ -34,6 +36,9 @@ onMounted(() => {
       // backdrop: 'dynamic',
       // backdropClasses: 'bg-gray-900/50 dark:bg-gray-900/80 fixed inset-0 z-40',
       // closable: true,
+      onHide: () => {
+        isShowModal.value = false;
+      },
     };
     modalInstance = new Modal(targetEl, options);
   } else {
@@ -42,55 +47,83 @@ onMounted(() => {
     );
   }
 
-  for (let index = 0; index < ageLoop.value; index++) {
-    premiumForm[index] = form.premium;
+  ageLoop.value = 5;
+});
+
+watch(ageLoop, (newX) => {
+  for (let index = 0; index < newX; index++) {
+    premiumForm[index] = form.premium ?? 0;
     cashBonusForm[index] = index == 2 ? 2 : 0;
   }
 });
 
 const calculation = () => {
-  console.log(form, premiumForm);
-  modalInstance?.show();
+  if (modalInstance) {
+    modalInstance.show();
+    isShowModal.value = true;
+  }
 };
 
 const isPaidPremium = (yearIndex: number) => {
-    const paymentPeriod = parseInt(form.payment_period_n_year_or_to_age.toString())
-    return paymentPeriod > yearIndex;
-}
+  const paymentPeriod = parseInt(
+    form.payment_period_n_year_or_to_age.toString()
+  );
+  return paymentPeriod > yearIndex;
+};
 
 const paidPremium = (yearIndex: number) => {
-    const premium = premiumForm[yearIndex] ?? 0;
-    return premium
-}
+  const premium = premiumForm[yearIndex] ?? 0;
+  return premium;
+};
 
 const cashBonusRate = (yearIndex: number) => {
-    const cashBonusRate = cashBonusForm[yearIndex] ?? 0;
-    return cashBonusRate
-}
+  const cashBonusRate = cashBonusForm[yearIndex] ?? 0;
+  return cashBonusRate;
+};
 
 const cashBonusReceive = (yearIndex: number) => {
-    const rate = cashBonusRate(yearIndex);
-    return rate ? parseInt(form.sa.toString()) * (rate / 100) : 0;
-}
+  const rate = cashBonusRate(yearIndex);
+  return rate ? parseInt(form.sa.toString()) * (rate / 100) : 0;
+};
 
 const matuarity = (yearIndex: number) => {
-    const isLast = parseInt(form.ins_period_n_year_or_to_age.toString()) == yearIndex;
-    return isLast ? parseInt(form.sa.toString()) * (form.matuarity / 100) : 0;
-}
+  const isLastYear =
+    parseInt(form.ins_period_n_year_or_to_age.toString()) == yearIndex + 1;
+  return isLastYear ? parseInt(form.sa.toString()) * (form.matuarity / 100) : 0;
+};
 
 const cashFlow = (yearIndex: number) => {
-    const isLast = parseInt(form.ins_period_n_year_or_to_age.toString()) == yearIndex;
-    if (isLast) {
-        return parseInt(form.sa.toString()) * (parseInt(form.matuarity.toString()) / 100);
-    } else {
-        const isPaid = isPaidPremium(yearIndex);
-        if (isPaid) {
-            return cashBonusReceive(yearIndex) - paidPremium(yearIndex);
-        }
-        return cashBonusReceive(yearIndex);
+  const isLast =
+    parseInt(form.ins_period_n_year_or_to_age.toString()) == yearIndex + 1;
+  if (isLast) {
+    return (
+      parseInt(form.sa.toString()) * (parseInt(form.matuarity.toString()) / 100)
+    );
+  } else {
+    const isPaid = isPaidPremium(yearIndex);
+    if (isPaid) {
+      return cashBonusReceive(yearIndex) - paidPremium(yearIndex);
     }
-}
+    return cashBonusReceive(yearIndex);
+  }
+};
 
+const irrCalculation = () => {
+  let cashFlows = [];
+  for (let index = 0; index < ageLoop.value; index++) {
+    cashFlows.push(cashFlow(index));
+  }
+
+  if (cashFlows.length > 0) {
+    // cashFlows = [-971, -971, 20, 2020];
+    const irr = calculateIRR(cashFlows);
+    return irr
+      ? (irr * 100).toFixed(4) + "%" + " | (" + irr.toFixed(6) + ")"
+      : "";
+  }
+
+  return "";
+};
 </script>
 
 <template>
@@ -187,6 +220,7 @@ const cashFlow = (yearIndex: number) => {
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
           placeholder=""
           min="0"
+          :max="form.ins_period_n_year_or_to_age"
           required
         />
       </div>
@@ -236,8 +270,8 @@ const cashFlow = (yearIndex: number) => {
           id="cash_bonus"
           v-model="form.cash_bonus"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-          placeholder=""
           min="0"
+          :disabled="form.cash_bonus_type == '3'"
         />
       </div>
       <div>
@@ -251,8 +285,8 @@ const cashFlow = (yearIndex: number) => {
           id="cash_bonus_every"
           v-model="form.cash_bonus_every"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-          placeholder=""
           min="0"
+          :disabled="form.cash_bonus_type == '3'"
         />
       </div>
       <div>
@@ -266,8 +300,8 @@ const cashFlow = (yearIndex: number) => {
           id="cash_bonus_to_age"
           v-model="form.cash_bonus_to_age"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
-          placeholder=""
           min="0"
+          :disabled="form.cash_bonus_type == '3'"
         />
       </div>
 
@@ -305,7 +339,7 @@ const cashFlow = (yearIndex: number) => {
         />
       </div>
 
-      <div class="col-span-2">
+      <div>
         <label
           for="premium"
           class="block mb-2 text-sm font-medium text-gray-900"
@@ -317,6 +351,21 @@ const cashFlow = (yearIndex: number) => {
           v-model="form.premium"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
           placeholder=""
+          min="0"
+          required
+        />
+      </div>
+
+      <div>
+        <label
+          for="premium"
+          class="block mb-2 text-sm font-medium text-gray-900"
+          >Age table loop:
+        </label>
+        <input
+          type="number"
+          v-model="ageLoop"
+          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
           min="0"
           required
         />
@@ -362,7 +411,7 @@ const cashFlow = (yearIndex: number) => {
         <table class="w-full text-sm text-center">
           <thead class="text-xs text-white uppercase bg-gray-400">
             <tr>
-              <th scope="col" class="px-6 py-3" colspan="2">Cash Bonus</th>
+              <th scope="col" class="px-6 py-3" colspan="2">Cash Type 3</th>
             </tr>
             <tr>
               <th scope="col" class="px-6 py-3">Year</th>
@@ -398,9 +447,9 @@ const cashFlow = (yearIndex: number) => {
 
     <button
       type="submit"
-      class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm w-full sm:w-auto px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+      class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm w-full px-5 py-2.5 text-center"
     >
-      Submit
+      Calculate
     </button>
   </form>
 
@@ -412,13 +461,16 @@ const cashFlow = (yearIndex: number) => {
   >
     <div class="relative w-full max-w-7xl max-h-full">
       <!-- Modal content -->
-      <div class="relative bg-white rounded-lg shadow-sm dark:bg-gray-700">
+      <div
+        class="relative bg-white rounded-lg shadow-sm dark:bg-gray-700"
+        v-if="isShowModal"
+      >
         <!-- Modal header -->
         <div
           class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600 border-gray-200"
         >
           <h3 class="text-lg font-semibold text-white">
-            IRR : xxxx
+            IRR : {{ irrCalculation() }}
           </h3>
           <button
             type="button"
@@ -446,7 +498,7 @@ const cashFlow = (yearIndex: number) => {
         <!-- Modal body -->
         <div class="p-4 md:p-5">
           <div class="relative overflow-x-auto">
-            <table class="w-full text-sm text-left">
+            <table class="w-full text-sm text-center">
               <thead class="text-xs text-gray-700 uppercase bg-gray-50">
                 <tr>
                   <th scope="col" class="px-6 py-3">Age</th>
@@ -461,29 +513,34 @@ const cashFlow = (yearIndex: number) => {
               <tbody>
                 <tr
                   class="bg-white border-b border-gray-200"
-                  v-for="yearIndex in parseInt(form.age)"
+                  v-for="(yearIndex, yearValue) in parseInt(form.ins_period_n_year_or_to_age)"
                   :key="yearIndex"
                 >
                   <th
                     scope="row"
                     class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap"
                   >
-                    {{ yearIndex - 1 }}
+                    {{ yearValue }}
                   </th>
-                  <td class="px-6 py-4">{{ yearIndex - 1 }}</td>
+                  <td class="px-6 py-4">{{ yearValue }}</td>
                   <td class="px-6 py-4">
-                    <span v-if="isPaidPremium(yearIndex - 1)">{{ form.premium }}</span></td>
-                  <td class="px-6 py-4">
-                    <span>{{ cashBonusRate(yearIndex - 1) }}.00%</span>
+                    <span v-if="isPaidPremium(yearValue)">{{
+                      form.premium
+                    }}</span>
                   </td>
                   <td class="px-6 py-4">
-                    <span>{{ cashBonusReceive(yearIndex- 1).toFixed(2) }}</span>
+                    <span>{{ cashBonusRate(yearValue) }}.00%</span>
                   </td>
                   <td class="px-6 py-4">
-                    <span>{{ matuarity(yearIndex- 1).toFixed(2) }}</span>
+                    <span>{{
+                      cashBonusReceive(yearValue).toFixed(2)
+                    }}</span>
                   </td>
-                    <td class="px-6 py-4">
-                    <span>{{ cashFlow(yearIndex- 1).toFixed(2) }}</span>
+                  <td class="px-6 py-4">
+                    <span>{{ matuarity(yearValue).toFixed(2) }}</span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <span>{{ cashFlow(yearValue).toFixed(2) }}</span>
                   </td>
                 </tr>
               </tbody>
