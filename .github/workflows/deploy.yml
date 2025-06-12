@@ -32,5 +32,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }} # GitHub's default token
           publish_dir: ./.output/public             # Path to your generated static files for Nuxt 3
-          # publish_branch: gh-pages              # Default is gh-pages, you can explicitly set it
-          # force_orphan: true                    # Recommended to clear old files
+          publish_branch: gh-pages              # Default is gh-pages, you can explicitly set it
+          force_orphan: true                    # Recommended to clear old files
