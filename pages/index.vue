@@ -22,6 +22,7 @@ const form = reactive({
   premium: 971,
 });
 
+const resultTable = ref<any[]>([])
 const ageLoop = ref();
 const premiumForm = reactive<Record<number, number>>({});
 const cashBonusForm = reactive<Record<number, number>>({});
@@ -58,6 +59,49 @@ watch(ageLoop, (newX) => {
 });
 
 const calculation = () => {
+  const toYear = parseInt(form.ins_period_n_year_or_to_age.toString());
+  const startAge = parseInt(form.age.toString());
+  const cbType = parseInt(form.cash_bonus_type.toString());
+
+  const cbEvery = parseInt(form.cash_bonus_every.toString());
+  const cbRate = parseInt(form.cash_bonus.toString());
+
+  resultTable.value = [];
+  for (let year = 0; year < toYear; year++) {
+    let _premium = isPaidPremium(year) ? paidPremium(year) : 0;
+
+    let _cashBonusRate = 0;
+    let _cashBonus = 0;
+    let _matuarity = 0;
+    let _cashFlow = 0;
+
+    if (cbType == 3) {
+      _cashBonusRate = cashBonusRateType3(year);
+      _cashBonus = cashBonusReceiveType3(year);
+    } else if (cbType == 1) {
+      // cash bonus paid every x years
+      if (year % cbEvery == 0) {
+        _cashBonusRate = cbRate;
+        _cashBonus = cashBonusReceiveType1(cbRate, year);
+      }
+    }
+
+    _matuarity = year == toYear - 1 ? matuarity(year) : 0;
+    _cashFlow = (_cashBonus - _premium) + _matuarity
+
+    resultTable.value.push({
+      'age': startAge + year,
+      'year': year,
+      'premium': _premium,
+
+      'cashBonusRate': _cashBonusRate,
+      'cashBonus': _cashBonus,
+
+      'matuarity': _matuarity,
+      'cf': _cashFlow
+    });
+  }
+
   if (modalInstance) {
     modalInstance.show();
     isShowModal.value = true;
@@ -76,13 +120,21 @@ const paidPremium = (yearIndex: number) => {
   return premium;
 };
 
-const cashBonusRate = (yearIndex: number) => {
-  const cashBonusRate = cashBonusForm[yearIndex] ?? 0;
-  return cashBonusRate;
+const cashBonusReceiveType1 = (cbRate: number, yearIndex: number) => {
+  return cbRate ? parseInt(form.sa.toString()) * (cbRate / 100) : 0;
+};
+
+const cashBonusRateType3 = (yearIndex: number) => {
+  return cashBonusForm[yearIndex] ?? 0;
+}
+
+const cashBonusReceiveType3 = (yearIndex: number) => {
+  const rate = cashBonusForm[yearIndex] ?? 0;
+  return rate ? parseInt(form.sa.toString()) * (rate / 100) : 0;
 };
 
 const cashBonusReceive = (yearIndex: number) => {
-  const rate = cashBonusRate(yearIndex);
+  const rate = cashBonusForm[yearIndex] ?? 0;
   return rate ? parseInt(form.sa.toString()) * (rate / 100) : 0;
 };
 
@@ -253,7 +305,7 @@ const irrCalculation = () => {
           v-model="form.cash_bonus_type"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
         >
-          <option value="1" disabled>Cash Bonus every x years</option>
+          <option value="1">Cash Bonus every x years</option>
           <option value="2" disabled>Type 1 + to age</option>
           <option value="3" selected>Custom</option>
           <option value="4" disabled>None</option>
@@ -263,7 +315,7 @@ const irrCalculation = () => {
         <label
           for="cash_bonus"
           class="block mb-2 text-sm font-medium text-gray-900"
-          >Cash Bonus :</label
+          >Cash Bonus (%) :</label
         >
         <input
           type="number"
@@ -271,14 +323,15 @@ const irrCalculation = () => {
           v-model="form.cash_bonus"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
           min="0"
-          :disabled="form.cash_bonus_type == '3'"
+          :disabled="!['1', '2'].includes(form.cash_bonus_type)"
+          :required="['1', '2'].includes(form.cash_bonus_type)"
         />
       </div>
       <div>
         <label
           for="cash_bonus_every"
           class="block mb-2 text-sm font-medium text-gray-900"
-          >Cash Bonus Every :</label
+          >Cash Bonus Every (Years) :</label
         >
         <input
           type="number"
@@ -286,7 +339,8 @@ const irrCalculation = () => {
           v-model="form.cash_bonus_every"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
           min="0"
-          :disabled="form.cash_bonus_type == '3'"
+          :disabled="!['1', '2'].includes(form.cash_bonus_type)"
+          :required="['1', '2'].includes(form.cash_bonus_type)"
         />
       </div>
       <div>
@@ -301,7 +355,8 @@ const irrCalculation = () => {
           v-model="form.cash_bonus_to_age"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
           min="0"
-          :disabled="form.cash_bonus_type == '3'"
+          :disabled="!['2'].includes(form.cash_bonus_type)"
+          :required="['2'].includes(form.cash_bonus_type)"
         />
       </div>
 
@@ -513,35 +568,21 @@ const irrCalculation = () => {
               <tbody>
                 <tr
                   class="bg-white border-b border-gray-200"
-                  v-for="(yearIndex, yearValue) in parseInt(form.ins_period_n_year_or_to_age)"
-                  :key="yearIndex"
+                  v-for="(item, index) in resultTable"
+                  :key="index"
                 >
                   <th
                     scope="row"
                     class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap"
                   >
-                    {{ yearValue }}
+                    {{ item.age }}
                   </th>
-                  <td class="px-6 py-4">{{ yearValue }}</td>
-                  <td class="px-6 py-4">
-                    <span v-if="isPaidPremium(yearValue)">{{
-                      form.premium
-                    }}</span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span>{{ cashBonusRate(yearValue) }}.00%</span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span>{{
-                      cashBonusReceive(yearValue).toFixed(2)
-                    }}</span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span>{{ matuarity(yearValue).toFixed(2) }}</span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span>{{ cashFlow(yearValue).toFixed(2) }}</span>
-                  </td>
+                  <td class="px-6 py-4">{{ item.year }}</td>
+                  <td class="px-6 py-4">{{ item.premium }}</td>
+                  <td class="px-6 py-4">{{ item.cashBonusRate }}.00%</td>
+                  <td class="px-6 py-4">{{ item.cashBonus.toFixed(2) }}</td>
+                  <td class="px-6 py-4">{{ item.matuarity.toFixed(2) }}</td>
+                  <td class="px-6 py-4">{{ item.cf.toFixed(2) }}</td>
                 </tr>
               </tbody>
             </table>

@@ -1,6 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineNuxtConfig({
+  compatibilityDate: '2025-06-16',
   ssr: false,
   app: {
     baseURL: '/mtl-irr-calculation/', // e.g., '/my-nuxt-blog/'
